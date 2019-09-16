@@ -4,6 +4,9 @@ import param
 
 
 class SMLMParameters(param.Parameterized):
+    """
+    SMLM parameter definitions
+    """
     # movie
     source = param.ObjectSelector(
         default='nstorm',
@@ -148,7 +151,11 @@ class SMLMParameters(param.Parameterized):
     locs_path = param.String()
     zcal_path = param.Filename()
 
-def get_parameters(parameters_path):
+
+def parse_parameters(parameters_path):
+    """
+    Read parameters stored in *.yaml format file
+    """
     params = SMLMParameters()
     if os.path.exists(parameters_path):
         with open(parameters_path, 'r') as param_file:

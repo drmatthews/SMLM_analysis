@@ -1,17 +1,3 @@
-# steps
-# 1. detect candidate featuures
-# 2. refine the positions
-# 3. save the positions
-
-# options to accept
-# 1. whether to wavelet or uniform filter
-# 2. whether to use phasors to estimate positions?
-# 3. whether to use a manual threshold or 2*std
-# 4. whether to use phasor or iterative fitting
-# 5. if using iterative whether to use MLE (default) or least squares
-# 6. is it 3D or not
-
-# how is the going to be called?
 import os
 import argparse
 
@@ -28,9 +14,10 @@ from ..localise import filters
 from ..localise import zfitting
 from ..localise.peak import PeakFinder
 from ..utils.locs_hdfstore import LocsHDFStore
-from ..utils.parameters import get_parameters
+from ..utils.parameters import parse_parameters
 from ..utils.linking import link
 from ..utils.drift_correction import RCCDriftCorrection
+
 
 pbar = tqdm.tqdm
 
@@ -119,13 +106,13 @@ def analyse_movie(movie_path, parameters_path, notebook=False):
             pass
 
         # parse the parameters
-        parameters = get_parameters(parameters_path)
+        parameters = parse_parameters(parameters_path)
 
         # after loading movie run the analysis
         try:
             results = run(movie, parameters, notebook)
         except KeyboardInterrupt:
-            print("Something went wrong")
+            print("Execution stopped")
     else:
         raise ValueError('movie or parameters file not found')
 
@@ -147,7 +134,7 @@ def test_frame(movie_path, parameters_path, frame_no):
         if frame_no > 0 and frame_no < len(movie):
             frame = movie[frame_no]
             # parse the parameters
-            parameters = get_parameters(parameters_path)
+            parameters = parse_parameters(parameters_path)
             camera_pixel = parameters.camera_pixel
 
             pf = PeakFinder(parameters, notebook)

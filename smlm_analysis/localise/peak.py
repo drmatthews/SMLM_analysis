@@ -331,16 +331,17 @@ class PeakFinder:
         # compound filter
         if 'wavelet' in self.params.locate_method:
             order = self.params.wavelet_spline_order
-            samples = self.params.wavelet_spline_scale
-            cf = filters.CompoundWaveletFilter(order, samples)
+            scale = self.params.wavelet_spline_scale
+            cf = filters.CompoundWaveletFilter(order, scale)
             filtered = cf.filter_image(frame.astype(np.float64))
+            samples = order
         elif 'uniform' in self.params.locate_method:
             samples = self.params.samples
             cf = filters.CompoundUniformFilter(samples)
             filtered = cf.filter_image(frame.astype(np.float64))
         else:
             raise ValueError('Image filtering method not set')
-        
+        print(samples)
         # maximum filter
         mf = filters.MaximumFilter(2 * samples + 1)
         mfilt = mf.filter_image(filtered)
