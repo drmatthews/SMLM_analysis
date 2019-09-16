@@ -1,0 +1,7 @@
+__pycache__
+SMLM_analysis.egg-info
+.ipynb_checkpoints
+.vscode
+*.pyd
+build/
+test_data/
