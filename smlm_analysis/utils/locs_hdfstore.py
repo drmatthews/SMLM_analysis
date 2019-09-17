@@ -98,9 +98,7 @@ def get_locs_in_rois(ijroi_path, roi_scale, locs):
 
 class LocsHDFStore:
 
-    """
-    Note - A localisation is a single row with all columns
-    """
+    """Note - A localisation is a single row with all columns"""
     def __init__(self, filepath=None, mode='read', **kwargs):
         if filepath.endswith('h5'):
             self.filepath = filepath
@@ -146,9 +144,7 @@ class LocsHDFStore:
             self.tracks_key = None
 
     def rename_table(self, key, new_key):
-        """
-        Give a table a new name. Use with caution.
-        """
+        """Give a table a new name. Use with caution."""
         keys = self.store.keys()
         if key in keys:
             self.store.get_node(key)._f_rename(new_key)             
@@ -156,9 +152,7 @@ class LocsHDFStore:
             raise IOError('Table does not exist in file')
 
     def remove_table(self, key):
-        """
-        Remove a table from the store. Use with caution.
-        """
+        """Remove a table from the store. Use with caution."""
         keys = self.store.keys()
         if key in keys:
             self.store.remove(key)
@@ -184,10 +178,9 @@ class LocsHDFStore:
         """
         A sorted list of integer frame numbers
 
-        Return
-        ------
-
-        list(int)
+        Returns
+        -------
+        frame_nos : list
         """
         frame_nos = self.store.select_column(self.key, FRAME_COLUMN).unique()
         frame_nos.sort()
@@ -195,45 +188,48 @@ class LocsHDFStore:
 
     def get_localisations(self):
         """
-        Return all rows - for
-        use if the DataFrame is not in memory
+        Return all rows - for use if the DataFrame is not in memory
 
         Returns
         -------
-        DataFrame
+        df : DataFrame
         """
         df = self.store.get(self.key)
         return df
 
     def get_coords(self):
-        """
-        Return all the (x,y,z) coordinates.
+        """Return all the (x,y,z) coordinates.
 
         Returns
         -------
-        np.array
+        coords : np.array
         """
         df = self.store.select(self.key, columns=[X_COLUMN, Y_COLUMN, Z_COLUMN])
         x = df[X_COLUMN].values
         y = df[Y_COLUMN].values
         z = df[Z_COLUMN].values
-        return np.array((x, y, z)).T
+        coords = np.array((x, y, z)).T
+        return coords
 
     def get(self, frame_no, start=None, stop=None, columns=None):
         """
-        Get the set of localisations with a 
-        specfied frame number (integer)
+        Get the set of localisations with a specfied frame number
+        (integer).
 
         Parameters
         ----------
-        frame_no (int) - the movie frame number
-        start (int) - input to HDFStore.select() - start selection at this row
-        stop (int) - input to HDFStore.select() - stop selection at this row
-        columns (list) - the columns to select from the table
+        frame_no : int
+            the movie frame number
+        start : int
+            input to HDFStore.select() - start selection at this row
+        stop : int
+            input to HDFStore.select() - stop selection at this row
+        columns : list
+            the columns to select from the table
 
         Returns
         -------
-        DataFrame
+        frame : DataFrame
         """
         if start and stop:
             assert start < stop
@@ -244,15 +240,13 @@ class LocsHDFStore:
         return frame
 
     def get_in_frame_range(self, start=None, stop=None, columns=None):
-
         """
         Gets the localisations in the specified movie frame range
 
         Returns
         -------
-        DataFrame
+        frames : DataFrame
         """
-
         assert start < stop
         frames = self.store.select(
             self.key, '{0} > {1} & {0} < {2}'.format(
@@ -263,12 +257,12 @@ class LocsHDFStore:
 
     def get_localisations_block(self, start=None, stop=None, columns=None):
         """
-        Get the set of localisations with a 
-        specfied table row number range (integer)
+        Get the set of localisations with a specfied table row number
+        range (integer).
 
         Returns
         -------
-        DataFrame
+        block : DataFrame
         """
         if start is None:
             start = 0
@@ -283,10 +277,22 @@ class LocsHDFStore:
         return block
 
     def get_table_rows(self, row_indices, key=None):
+        """
+        Get rows at the specified indices.
+
+        Parameters
+        ----------
+        row_indices : list of int
+            A list of row indices to select from the table.
+
+        Returns
+        -------
+        rows : Pandas DataFrame
+        """
         if key is None:
             key = self.key
-
-        return self.store.select(key, where=row_indices)
+        rows = self.store.select(key, where=row_indices)
+        return rows
 
     def get_localisations_in_frame(self, frame_no):
         """
@@ -294,7 +300,7 @@ class LocsHDFStore:
 
         Returns
         -------
-        DataFrame
+        frame : Pandas DataFrame
         """
         frame = self.get(frame_no)
         return frame 
@@ -306,7 +312,7 @@ class LocsHDFStore:
 
         Returns
         -------
-        np.array
+        coords : numpy array
         """
         cols = [X_COLUMN, Y_COLUMN, Z_COLUMN]
         try:
@@ -314,7 +320,8 @@ class LocsHDFStore:
             x = frame[X_COLUMN].values
             y = frame[Y_COLUMN].values
             z = frame[Y_COLUMN].values
-            return np.array((x, y, z)).T
+            coords = np.array((x, y, z)).T
+            return coords
         except:
             return np.array([])
 
@@ -327,13 +334,14 @@ class LocsHDFStore:
 
         Returns
         -------
-        Pandas DataFrame
+        df : Pandas DataFrame
         """
         df = self.store.select(
             self.key, 
             columns=[X_COLUMN, Y_COLUMN, Z_COLUMN, FRAME_COLUMN]
         )
-        return df.reset_index(drop=True) 
+        df.reset_index(drop=True)
+        return df
 
     def get_width(self):
         df = self.store.select(
@@ -360,9 +368,9 @@ class LocsHDFStore:
         A generator of localisations - gets all localisations in a
         movie frame.
 
-        Returns
+        Yields
         -------
-        Dataframe
+        frame : Pandas Dataframe
         """
         if start and stop:
             assert start < stop
@@ -380,13 +388,14 @@ class LocsHDFStore:
 
         selected = [f for f in frames if f >= start and f <= stop]
         for frame_no in selected:
-            yield self.get(frame_no)
+            frame = self.get(frame_no)
+            yield frame
 
     def coords_iterator(self, start=None, stop=None):
         """
-        A generator of (x,y,z) coordinates
+        A generator of (x,y,z) coordinates.
 
-        Returns
+        Yields
         -------
         tuple (frame_no, points)
         """
@@ -407,7 +416,7 @@ class LocsHDFStore:
             x = df[X_COLUMN].values
             y = df[Y_COLUMN].values
             z = df[Y_COLUMN].values
-            yield frame_no, np.array((x, y, z)).T
+            yield (frame_no, np.array((x, y, z)).T)
 
     def _area_under_curve(self, x, y):
         return abs(np.trapz(y, x))
@@ -460,9 +469,7 @@ class LocsHDFStore:
         self.key = None
 
     def write_locs(self, locs, key=None):
-        """
-        Iteratively write localisations to HDF5
-        """
+        """Iteratively write localisations to HDF5."""
         if key is None:
             key = '/table'
 
@@ -491,9 +498,7 @@ class LocsHDFStore:
         self._key = '/table'
 
     def write_tracks(self, tracks):
-        """
-        Iteratively write tracks to table in HDF5
-        """        
+        """Iteratively write tracks to table in HDF5"""        
         self.tracks_key = '/tracks_table'
         try:
             df = pd.DataFrame(tracks)
@@ -506,9 +511,7 @@ class LocsHDFStore:
             raise IOError('Could not write tracks to file')
 
     def write_track(self, track):
-        """
-        Write a single track as a separate table
-        """
+        """Write a single track as a separate table."""
         key = '/track_{}'.format(track['track_id'].values[0])
         # print(key)
         try:
@@ -574,6 +577,19 @@ class ClustersHDFStore(LocsHDFStore):
         Rewrites the table in the store to include a column of IDs
         of clusters. Writes clustering information to
         the metadata.
+
+        Parameters
+        ----------
+        cluster_id : int
+            Integer identifier for the cluster
+        index: list of int
+            Row indices at which to insert the cluster ID
+        labels: list of int
+            A list of unique cluster IDs
+        core_samples_mask: bool numpy array
+            A boolean array where True marks members of a cluster
+        info: dict
+            Clustering information
         """
         # remove any pre-exisiting clusters
         keys = self.store.keys()
@@ -615,7 +631,7 @@ class ClustersHDFStore(LocsHDFStore):
 
         Returns
         -------
-        np.array
+        tuple of (row indices, numpy array of (x,y) positions)
         """
         # need to adapt this to iterate over cluster tables if
         # they exist

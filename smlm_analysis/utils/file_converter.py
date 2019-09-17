@@ -1,5 +1,6 @@
 from optparse import OptionParser
 import os
+import errno
 import csv
 
 import tqdm
@@ -24,13 +25,34 @@ HDF_COLS = ['x', 'y', 'z', 'intensity',
 ###
 # CSV read, Pandas write - kept in reserve
 ###
-def _write_hdf(h5path, filereader, source, source_cols, chunksize=50000, chunks=1):
+def _write_hdf(h5path, filereader, source,
+               source_cols, chunksize=50000, chunks=1):
     """
     Writes the input localisations to an HDF5 file using Pandas
     HDFStore as chunks (using append). 
     
-    Note the data is read in chunks from the source and written
+    Parameters
+    ----------
+    h5path : str
+        The full destination path for the converted file.
+    filereader : filereader instance
+        The Pandas filereader iterator used
+        to read out data from the file in chunks.
+    source : str
+        The name of the software that created the file.
+    source_cols : list
+        A list of column names in the source file.
+    chunksize : int
+        The number of rows of the input data read in one
+        iteration.
+    chunks : int
+        The total number of chunks being read - for the pbar.
+
+    Note
+    ----
+    The data is read in chunks from the source and written
     in chunks to the file to preserve memory.
+
     """
     # print(source)
     if os.path.exists(h5path):
@@ -63,6 +85,19 @@ def _write_hdf(h5path, filereader, source, source_cols, chunksize=50000, chunks=
 
 
 def _to_hdf(fpath, source='nstorm', chunksize=50000):
+    """
+    Convert input text or csv file to HDF5.dict_values
+
+    Parameters
+    ----------
+    fpath : str
+        The full path to the file being converted.
+    source : str
+        The name of the software which created the source file.
+    chunksize : int
+        The number of rows to read from the source file in
+        a single iteration.
+    """
     if os.path.exists(fpath):
 
         if 'nstorm' in source and fpath.endswith('txt'):
@@ -103,6 +138,16 @@ def _linecount(filename):
     """
     Use unbuffered interface to read line number.
     Useful for updating progress bar.
+
+    Parameters
+    ----------
+    filename : str
+        Full path to file
+    
+    Returns
+    -------
+    lines : int
+        Total number of lines in the file.
     """
     f = open(filename, 'rb')
     lines = 0
@@ -118,9 +163,25 @@ def _linecount(filename):
 
 
 def _gen_chunks(reader, source_cols, chunksize=100):
-    """ 
+    """
     Chunk generator. Take a CSV `DictReader` and yield
-    `chunksize` sized slices. 
+    `chunksize` sized slices.
+
+    Parameters
+    ----------
+    reader : DictReader
+        A csv DictReader instance.
+    source_cols : list
+        A list of columns names in the source file.
+    chunksize : int
+        The number of rows read from the source file
+        in a single iteration.
+
+    Yields
+    ------
+    chunk : list
+        A set of rows from the source file where the number of rows
+        is equal to `chunksize`.
     """
     chunk = []
     for index, line in enumerate(reader):
@@ -135,9 +196,24 @@ def _gen_chunks(reader, source_cols, chunksize=100):
     yield chunk
 
 def _gen_frames(reader, source_cols, frame_col):
-    """ 
-    Frame generator. Take a CSV `DictReader` and yield
+    """Frame generator. Take a CSV `DictReader` and yield
     slices which represent a single frame in a SMLM movie. 
+
+    Parameters
+    ----------
+    reader : DictReader
+        A csv DictReader instance.
+    source_cols : list
+        A list of column names in the source file.
+    frame_col : str
+        The name of the column representing the movie
+        frame numner.
+
+    Yields
+    ------
+    frame : list
+        A list of rows representing the localisations in a single
+        movie frame.
     """
 
     frame_no = next(reader)[frame_col]
@@ -156,10 +232,7 @@ def _gen_frames(reader, source_cols, frame_col):
 
 
 def _read_header(fpath, delimiter):
-    """
-    Read the file header - useful for
-    getting column names.
-    """
+    """Read the file header - useful for getting column names."""
     with open(fpath, "r") as f:
         reader = csv.reader(f, delimiter=delimiter)
         header = next(reader)
@@ -171,9 +244,28 @@ def _read_header(fpath, delimiter):
 def write_hdf_h5py(h5path, filereader, source, source_cols, chunksize=50000, chunks=1):
     """
     Writes the input localisations to an HDF5 file using h5py
-    to write data one SMLM movie frame at a time (slow). 
-    
-    Note the data is read in chunks from the source and written
+    to write data one SMLM movie frame at a time (slow).
+
+    Parameters
+    ----------
+    h5path : str
+        The full destination path for the converted file.
+    filereader : filereader instance
+        The Pandas filereader iterator used
+        to read out data from the file in chunks.
+    source : str
+        The name of the software that created the file.
+    source_cols : list
+        A list of column names in the source file.
+    chunksize : int
+        The number of rows of the input data read in one
+        iteration.
+    chunks : int
+        The total number of chunks being read - for the pbar.
+
+    Note
+    ----
+    The data is read in chunks from the source and written
     in chunks to the file to preserve memory.
     """
     # print(source)
@@ -198,19 +290,23 @@ def write_hdf(h5path, filereader, source, source_cols, hdf_cols):
     Writes the input localisations to an HDF5 file using Pandas
     HDFStore as chunks (using append). 
     
-    Note the data is read in chunks from the source and written
-    in chunks to the file to conserve memory.
+    Parameters
+    ----------
+    h5path : str
+        the path to write to
+    filereader : FileReader
+        filereader iterator object
+    source : str
+        the software that generated the original file
+    source_cols : list
+        columns to use in the source file
+    hdf_cols : list
+        column names in the HDF5 data
 
-    :param h5path:      the path to write to
-    :type  h5path:      str
-    :param filereader:  filereader iterator object
-    :type  filereader:  pandas FileReader
-    :param source:      the software that generated the original file
-    :type  source:      str
-    :param source_cols: columns to use in the source file
-    :type  source_cols: list
-    :param hdf_cols:    column names in the HDF5 data
-    :type  hdf_cols:    list
+    Note
+    ----
+    The data is read in chunks from the source and written
+    in chunks to the file to conserve memory.
     """
     # print(source)
     if os.path.exists(h5path):
@@ -252,10 +348,16 @@ def to_hdf(fpath, source='nstorm'):
     HDF_COLUMNS. This can accept data from either NSTORM or
     ThunderSTORM.
 
-    :param fpath:  full path to the source file being converted
-    :type  fpath:  str
-    :param source: the software that generated the original file
-    :type  source: str
+    Parameters
+    ----------
+    fpath : str
+        full path to the source file being converted
+    source : str
+        the software that generated the original file
+
+    Raises
+    ------
+    FileNotFoundError
     """
     if os.path.exists(fpath):
 
@@ -295,12 +397,24 @@ def to_hdf(fpath, source='nstorm'):
 
         write_hdf(h5path, reader, source, source_cols, hdf_cols)
     else:
-        raise OSError('File not found')
+        raise FileNotFoundError(
+            errno.ENOENT, os.strerror(errno.ENOENT), fpath
+        )
 
 
 def batch_convert_to_hdf(folder, source='nstorm', read_chunks=False):
     """
-    Convert a whole folder of localisation files to HDF5 format
+    Convert a whole folder of localisation files to HDF5 format.
+
+    Parameters
+    ----------
+    folder : str
+        Path to folder containing files to be converted.
+    source : str
+        The software that created the source files.
+    read_chunks : bool
+        True if the individual files are to be read
+        in chunks.
     """
     if os.path.isdir(folder):
         for filename in os.listdir(folder):

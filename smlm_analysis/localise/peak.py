@@ -140,6 +140,9 @@ uncertainty calculation from thunderstorm
         }
 '''
 class Peak:
+    """
+    A representation of a bright spot in a fluorscence microscopy image.
+    """
     def __init__(self, is_3d, camera_pixel, photon_conversion):
 
         self.x = None
@@ -228,6 +231,9 @@ class Peak:
 
 
 class PhasorPeak(Peak):
+    """
+    A bright spot classified by the Phasor fitting technique.
+    """
     def __init__(self, is_3d, window,
                  camera_pixel, photon_conversion,
                  method=None, psf_shape=None,
@@ -258,6 +264,9 @@ class PhasorPeak(Peak):
 
 
 class GaussPeak(Peak):
+    """
+    A bright spot classified by iterative Gaussian fitting.
+    """
     def __init__(self, is_3d, window,
                  camera_pixel, photon_conversion,
                  method='mle', psf_shape='elliptical',
@@ -316,6 +325,13 @@ class GaussPeak(Peak):
     
 
 class PeakFinder:
+    """
+    A class for estimation of the position of bright spots in a
+    fluorescence microscopy image. First estimation is done using
+    compound filtering (using either a wavelet or uniform kernel).
+    Positions are refined using either phasor fitting or by iterative
+    Gaussian fitting (using either MLE or least squares).
+    """
     def __init__(self, parameters, notebook):
         self.params = parameters
         self.notebook = notebook

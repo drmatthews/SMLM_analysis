@@ -8,6 +8,8 @@ from .locs_hdfstore import LocsHDFStore
 
 from matplotlib import pyplot as plt
 
+# Note: this doesn't yet write the linked
+#       data back to file
 
 def _near_neighbours(treeA, treeB, radius):
     # indices of all neighbours of treeA in treeB
@@ -41,38 +43,30 @@ def _near_neighbours(treeA, treeB, radius):
 
 
 class Track:
-    def __init__(self, locs, first_frame, track_id):
+    """
+    Representation of a track (a linked set of localisations)
+    """
+    def __init__(self, loc, first_frame, track_id):
         # DataFrame of localisations
-        self.locs = pd.DataFrame(locs).T
-        self.locs['track_id'] = track_id
-        # print(self.locs)
-        # self.locs['track_id'] = track_id
-        # numpy array for track center and building kdtree
-        coords = locs[['x', 'y']].values
-        self.coords = coords.reshape((1, coords.shape[0]))
+        self.locs = [loc]
+        self.x = [loc['x']]
+        self.y = [loc['y']]
+
         self.track_id = track_id
         self.first_added = first_frame
         self.last_added = first_frame
-        self.detections = self.coords.shape[0]
+        self.detections = 0
         self._calculate_center()
 
     def _calculate_center(self):
-        self._center = np.mean(self.coords, axis=0)
+        mean_x = sum(self.x) / float(len(self.x))
+        mean_y = sum(self.y) / float(len(self.y))
+        self._center = [mean_x, mean_y]
 
     def add_localisation(self, loc, frame):
-        # add the localisation to the locs DataFrame
-        # print(pd.DataFrame(loc))
-        # print('adding {}'.format(self.loc))
-
-        loc_ = pd.DataFrame(loc).T
-        loc_['track_id'] = self.track_id
-        self.locs = pd.concat([self.locs, loc_])
-        # add the coords to the numpy array of coords
-        coords_ = loc[['x', 'y']].values
-        coords = coords_.reshape((1, coords_.shape[0]))
-        self.coords = np.append(
-            self.coords, coords, axis=0
-        )
+        self.locs.append(loc)
+        self.x.append(loc['x'])
+        self.y.append(loc['y'])
         self.detections += 1
         self.last_added = frame
         # recalculate the track center
@@ -118,29 +112,32 @@ def link(locs_path, start, stop, radius=.5,
     """
     Links localisations in successive frames.
 
+    Parameters
+    ----------
+    locs_path : str
+        file path to localisations file
+    start : int
+        starting frame number
+    stop : int
+        frame number to stop at
+    radius : float
+        search radius for near neighbour query in kdtree
+    max_gap : int
+        maximum number of frames the localisation
+        is allowed to disappear and remain part of
+        a track
+    max_length : int
+        maximum allowable length of a track
+    notebook : bool
+        is this being run from a notebook
+
+    Note
+    ----
     Not an exact copy of, but heavily influenced by that
     found here: https://github.com/ZhuangLab/storm-analysis
 
     Deals with gaps and max length in exactly the same way
     as here: https://github.com/zitmen/thunderstorm
-
-    :param  locs_path:  file path to localisations file
-    :type   locs_path:  str
-    :param  start:      starting frame number
-    :type   start:      int
-    :param  stop:       frame number to stop at
-    :type   stop:       int
-    :param  radius:     search radius for near neighbour
-                        query in kdtree
-    :type   radius:     float
-    :param  max_gap:    maximum number of frames the localisation
-                        is allowed to disappear and remain part of
-                        a track
-    :type   max_gap:    int
-    :param  max_length: maximum allowable length of a track
-    :type   max_length: int
-    :param  notebook:   is this being run from a notebook
-    :type   notebook:   bool
     """
     assert(stop > start)
     pbar_ = tqdm.tqdm
@@ -167,7 +164,11 @@ def link(locs_path, start, stop, radius=.5,
             #     lhdf.locs_frame_iterator(start=start, stop=stop),
             #     total=max_, desc='linking'
             # ):
-            for fid, locs in df.groupby('frame'):
+
+            for fid, locs in pbar_(
+                df.groupby('frame'),
+                total=max_, desc='linking'
+            ):
 
                 if not locs.empty:
                     deactivate = []
@@ -235,7 +236,7 @@ def link(locs_path, start, stop, radius=.5,
 if __name__=='__main__':
     lpath = '.\\test_data\\tetra_speck_beads_time_lapse_0.h5'
 
-    linked = link(lpath, 0, 10, radius=0.5 * 160.0)
+    linked = link(lpath, 0, 100, radius=0.5 * 160.0)
     # with LocsHDFStore(lpath) as lhdf:
     #     locs1 = lhdf.get_coords_in_frame(1001)
     #     print(locs1)

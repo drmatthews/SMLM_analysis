@@ -138,6 +138,15 @@ COLUMNS = ['x', 'y', 'z', 'uncertainty', 'frame', 'intensity', 'detections']
 
 
 class PhasorFitter:
+    """Use the first phasor of the FFT of the image to find the position
+    of the bright spot in the image.
+
+    Reference:
+        K. J. A. Martens et al. "Phasor based single-molecule localization
+        microscopy in 3D (pSMLM-3D): An algorithm for MHz localization rates
+        using standard CPUs", J. Chem. Phys. 148, 123311 (2018);
+        https://doi.org/10.1063/1.5005899
+    """"
     def __init__(self, is_3d, window):
         self.fit_params = np.zeros(7, dtype=np.float64)
         self.aperture(window)
@@ -233,71 +242,6 @@ class PhasorFitter:
         # good = True
         self.fit_params[6] = True
 
-
-# class PhasorPeakFinder(peak.PeakFinder):
-#     def __init__(self, parameters):
-#         super().__init__(parameters)
-#         self.curr_frame = 0
-
-#     def _phasor(self, candidates, frame):
-#         window = self.params.window
-#         fit_radius = int((window - 1) / 2.0)
-#         peaks = []
-#         for cand in candidates:
-#             peak = PhasorPeak(
-#                 self.params.is_3d, window, frame.frame_no,
-#                 self.params.camera_pixel, self.params.photon_conversion
-#             )
-            
-#             # print(coord)
-#             # cut the candidate out of the image
-#             reference = cand - fit_radius
-#             img = frame[
-#                 cand[0] - fit_radius: cand[0] + fit_radius + 1,
-#                 cand[1] - fit_radius: cand[1] + fit_radius + 1
-#             ] * self.params.photon_conversion
-
-#             peak.fit(img, reference)
-#             peaks.append(peak)
-
-#         return peaks
-
-#     def locate(self, image):
-#         candidates = self.find(image)
-#         peaks = self._phasor(candidates, image)
-#         # print(time.time() - start)
-#         return peaks
-
-        
-
-
-"""
-Notes:
-
-Procedure:
-1. read a frame from the movie.
-2. wavelet filter it.
-3. find local maxima in filtered frame using std as threshold.
-4. analyse the local maxima and remove any with overlapped fitting
-windows. this is done because phasor analysis can't do multi-emitter
-fitting. does this matter if the dataset has been hawked? build a kdtree
-(or ball tree) and query near neighbours.
-5. cut-out rois from frame centered on the local maxima.
-6. do phasor analysis to return the molecule position.
-7. link molecules in adjacent frames.
-8. merge linked molecules.
-9. apply any filering.
-10. save the molecules to hdf5.
-
-classes to encapsulate data
-
-input parameters?
-movie - see movie reader classes
-frame?
-peak/molecule? [decide on naming convention]
-filter - see wavelet filter classes
-phasor?
-"""
 
 if __name__=='__main__':
     from ..utils.parameters import SMLMParameters
