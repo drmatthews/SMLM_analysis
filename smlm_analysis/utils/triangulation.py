@@ -6,43 +6,66 @@ from shapely.geometry import Polygon, MultiPoint, MultiLineString
 from shapely.ops import cascaded_union, polygonize
 
 def triangulate(xy):
-    """Returns the Delaunay triangulation object"""
+    """
+    Returns the Delaunay triangulation object.
+    """
     return Delaunay(xy)
 
+
 def hull_vertices(xy):
-    """Returns the vertices from a Hull object"""
+    """
+    Returns the vertices from a Hull object.
+    """
     hull = ConvexHull(xy)
     return xy[hull.vertices]
 
+
 def hull_area(xy):
-    """Returns the area from the Hull object. For
-    a 2D shape this is the perimeter"""
+    """
+    Returns the area from the Hull object. For
+    a 2D shape this is the perimeter.
+    """
     hull = ConvexHull(xy)
     return hull.area
     
+
 def poly_area2D(pts):
-    """Returns a calculation of the 2D polygon area"""
+    """
+    Returns a calculation of the 2D polygon area.
+    """
     lines = np.hstack([pts,np.roll(pts,-1,axis=0)])
     area = 0.5*abs(sum(x1*y2-x2*y1 for x1,y1,x2,y2 in lines))
     return area
 
+
 def pc_ratio(pts):
-    """Returns the ratio of the first two principle components.
-    Uses the scikit-learn package to calculate PCA."""
+    """
+    Returns the ratio of the first two principle components.
+    Uses the scikit-learn package to calculate PCA.
+    """
     pca = PCA(n_components=2)
     pca.fit(pts)
     pc = pca.components_[0]
     return max(abs(pc[0]),abs(pc[1])) / min(abs(pc[0]),abs(pc[1]))
 
+
 def alpha_shape(points, alpha):
     """
     Compute the alpha shape (concave hull) of a set
     of points.
-    @param points: Numpy array of object coordinates.
-    @param alpha: alpha value to influence the
-        gooeyness of the border. Smaller numbers
-        don't fall inward as much as larger numbers.
-        Too large, and you lose everything!
+
+    Parameters
+    ----------
+    points: Numpy array
+        Oject coordinates.
+    alpha: alpha value
+        Will influence the gooeyness of the border. Smaller numbers
+        don't fall inward as much as larger numbers. Too large, and
+        you lose everything!
+
+    Returns
+    -------
+    The object border.
     """
     if len(points) < 4:
         # When you have a triangle, there is no sense
@@ -91,6 +114,7 @@ def alpha_shape(points, alpha):
     m = MultiLineString(edge_points)
     triangles = list(polygonize(m))
     return cascaded_union(triangles), edge_points
+
 
 def intersection(x1, y1, x2, y2):
 #      y = a*x + b

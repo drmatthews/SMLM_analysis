@@ -6,7 +6,6 @@ import time
 DRAW_MAX_SIGMA = 3
 
 
-# @jit(nopython=True, nogil=True)
 def image_2d(x, y, binsx, binsy, bin_size):
     im = np.zeros((binsy, binsx), dtype=np.int32)
     i_x = np.floor(x / bin_size).astype(np.int32)

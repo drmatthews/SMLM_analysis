@@ -3,17 +3,21 @@ This is a modified version of code written by Hazen Babcock from the
 Zhuang lab at Harvard Medical School.
 
 This has been modified to work on localisations saved in a Pandas
-DataFrame. The localisations are parsed using the ClustersTable class
-in "localisations.py".
+DataFrame. The localisations are parsed using the ClustersHDFStore class
+in "locs_hdfstore.py". I have also added a method for determining the
+density threshold for clustering using a Monte Carlo simulation as in [1].
 
-Dan 23/11/18
+[1] L Andronov et al., "ClusterViSu, a method for clustering of protein complexes
+by Voronoi tessellation in super-resolution microscopy",
+Scientific Reports volume 6, Article number: 24084 (2016)
+
+
+Dan 17/09/19
 """
 import os
 import datetime
-import math
-from collections import defaultdict
 import itertools
-import time
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -25,22 +29,15 @@ from shapely.geometry import Polygon
 from scipy.spatial import Delaunay
 from scipy.stats import norm
 
-from smlm_analysis.clustering._voronoi_inner import voronoi_inner
-from smlm_analysis.utils.localisations import ClustersTable
-from smlm_analysis.utils.plotting import plot_voronoi_diagram, plot_cluster_polygons
-import smlm_analysis.utils.triangulation as tri
+from ..cluster._voronoi_inner import voronoi_inner
+from ..utils.locs_hdfstore import ClustersHDFStore
+from ..utils import triangulation as tri
 
 
-# required
-# 1. refactor so that the methods work on arrays of (x,y) coordinates
-# and have separate methods for reading the input data and writing results
-# back to the data structure - done
-# 2. some way of marking the data so that multiple passes
-# through the clustering method can be made - done
-# 3. a method for batch analysis - done
-# 4. a collection of methods to calculate cluster statistics (separate module)
-# 5. a method for saving clusters back to the hdf5 file - done see add_clusters method
-
+def _fov(points):
+    fov_x = np.max(points[:, 0]) - np.min(points[:, 0])
+    fov_y = np.max(points[:, 1]) - np.min(points[:, 1])
+    return (fov_x, fov_y)
 
 
 def monte_carlo_threshold(points, confidence=99.0, iterations=100, show_plot=False):
@@ -49,40 +46,52 @@ def monte_carlo_threshold(points, confidence=99.0, iterations=100, show_plot=Fal
     at which the input points are more clustered than a random
     distribution of points at the same density.
 
-    Arguments
+    Parameters
     ---------
-    points (ndarray): 2d numpy array of (x,y) localisation coordinates
-    confidence (float): confidence interval
-    iterations (int): number of Monte Carlo iterations
-    show_plot (bool): plot histrograms of the distribution of Voronoi polygon
+    points : ndarray
+        2d numpy array of (x,y) localisation coordinates
+    confidence : float
+        confidence interval
+    iterations : int
+        number of Monte Carlo iterations
+    show_plot : bool
+        plot histrograms of the distribution of Voronoi polygon
     areas
 
     Returns
     -------
     Dict
     """
+    # initialise density and area values
     locs_density = voronoi_density(points)
     locs_area = np.divide(1.0, locs_density)
     locs_area = locs_area[~np.isnan(locs_area)]
+    width, height = _fov(points)
+    tot_area = width * height
+    points_density = points.shape[0] / np.max(width, height)**2
 
+    # confidence interval
     z = norm.ppf(1 - float(100 - confidence) * 0.01 / 2.0)
-    # the following is broken
-    ####################
-    density = locs.density
-    area = locs.area
-    width = locs.fov[0]
-    height = locs.fov[1]
-    #####################
-    num_rand_locs = int(density * area)
+
+    # number of bins in the area histogram
     bins = round(2 * locs_area.shape[0]**(1/3))
+
+    # data structure to hold monte carlo results
     mc_counts = np.zeros((iterations, bins))
 
+    # number of randomly placed localisations
+    num_rand_locs = int(points_density * tot_area)
+
+    # start the Monte Carlo loop
     for i in range(0, iterations):
-        x = height * np.random.random((num_rand_locs, 1))
-        y = width * np.random.random((num_rand_locs, 1))
-        xy = pd.DataFrame(np.hstack((x, y)))
-        xy.columns = ['x', 'y']
+        # generate random points
+        x = width * np.random.random((num_rand_locs, 1))
+        y = height * np.random.random((num_rand_locs, 1))
+        xy = np.hstack((x, y))
+
+        # work out density of Voronoi tiles
         rand_vor_density = voronoi_density(xy)
+        # build a histogram of their area
         area = np.divide(1.0, rand_vor_density)
         area = area[~np.isnan(area)]
         if i == 0:
@@ -90,6 +99,7 @@ def monte_carlo_threshold(points, confidence=99.0, iterations=100, show_plot=Fal
         c, _ = np.histogram(area, bins=bins, range=(0, lim))
         mc_counts[i, :] = c[:]
 
+    # determine histogram of area of Voronoi tiles in input localisations
     counts, edges = np.histogram(locs_area, bins=bins, range=(0, lim))
     centers = (edges[:-1] + edges[1:]) / 2
     mean_mc_counts = np.mean(mc_counts, axis=0)
@@ -97,6 +107,7 @@ def monte_carlo_threshold(points, confidence=99.0, iterations=100, show_plot=Fal
     upper_mc_counts = np.add(mean_mc_counts, z * std_mc_counts)
     lower_mc_counts = np.subtract(mean_mc_counts, z * std_mc_counts)
 
+    # determine where the two sets of histograms intersect
     ind = np.where((counts - mean_mc_counts) < 0.0)[0][0]
     x1 = np.array((centers[ind - 1], centers[ind]))
     y1 = np.array((counts[ind - 1], counts[ind]))
@@ -134,9 +145,10 @@ def find_neighbours(points):
     Determine the indices of the neighbouring Voronoi
     polygons for each input point.
 
-    Arguments
+    Parameters
     ---------
-    points (ndarray): 2d numpy array of (x,y) localisation coordinates
+    points : ndarray
+        2d numpy array of (x,y) localisation coordinates
 
     Return
     ------
@@ -163,9 +175,10 @@ def voronoi_density(points):
     Determine the local density for each Voronoi polygon for
     a set of localisation coordinates.
 
-    Arguments
+    Parameters
     ---------
-    points (ndarray): 2d numpy array of (x,y) localisation coordinates
+    points : ndarray
+        2d numpy array of (x,y) localisation coordinates
 
     Returns
     -------
@@ -191,28 +204,31 @@ def voronoi_density(points):
     return density
 
 
-def find_clusters(points, thresh_method='median', min_samples=5,
-                  density_factor=0.001, show_plot=False):
+def voronoi_clustering(points, thresh_method='median', min_samples=5,
+                       density_factor=0.001, show_plot=False):
 
     """
     Segments a set of localisation coordinates into clusters based
     on local density determined by forming a Voronoi tessellation.
 
-    Arguments
+    Parameters
     ---------
-    points (ndarray): 2d numpy array of (x,y) localisation coordinates
-    thresh_method (str): the method used to determine the density
-    threshold for cluster formation
-    density_factor (float): a multiplication factor used to refine
-    the threshold
-    min_samples (int): there should be at least this many
-    localisations in a cluster
-    show_plot (bool): plot localisation coordinates, Voronoi polygons
-    and clusters
+    points : ndarray
+        2d numpy array of (x,y) localisation coordinates
+    thresh_method : str
+        the method used to determine the density threshold for cluster
+        formation
+    density_factor : float
+        a multiplication factor used to refine the threshold
+    min_samples : int
+        there should be at least this many localisations in a cluster
+    show_plot : bool
+        plot localisation coordinates, Voronoi polygons and clusters
 
     Returns
     -------
-    ndarray of cluster labels
+    Tuple
+        (ndarray of cluster labels, ndarray of core_samples_mask)
     """
 
     n_locs = points.shape[0]
@@ -220,13 +236,19 @@ def find_clusters(points, thresh_method='median', min_samples=5,
     density = voronoi_density(points)
 
     if thresh_method == 'median':
-        thresh_density = np.median(density[~np.isnan(density)]) * density_factor
+        thresh_density = (
+            np.median(density[~np.isnan(density)]) * density_factor
+        )
     elif thresh_method == 'monte_carlo':
         mc_data = monte_carlo_threshold(points, iterations=10)
         thresh_density = 1.0 / mc_data['intersection'][0]
 
     labels = np.full(n_locs, -1, dtype=np.intp)
-    labels = voronoi_inner(n_locs, nlist, density, thresh_density, min_samples)
+    labels = voronoi_inner(
+        n_locs, nlist, density, thresh_density, min_samples
+    )
+    core_samples_mask = np.full(n_locs, 1, dtype=np.int32)
+    core_samples_mask[labels == -1] = 0
 
     if show_plot:
         vor = Voronoi(points)
@@ -246,20 +268,25 @@ def find_clusters(points, thresh_method='median', min_samples=5,
                 ax.plot(cluster_points[:, 0], cluster_points[:, 1], 'rx')    
         plt.show()
 
-    return labels
+    return (labels, core_samples_mask)
 
-def run(locs_path, cluster_id='cluster_id', filter_by=None,
-        thresh_method='median', min_samples=10,
-        density_factor=0.01, show_plot=False):
 
-    with ClustersTable(locs_path) as ct:
-        index, xy = ct.get_cluster_points(filter_by=filter_by)
-        labels = find_clusters(
+def run_voronoi(locs_path, thresh_method='median', min_samples=10,
+                density_factor=0.01, show_plot=False):
+    """
+    Entry point for Voronoi clustering
+    """
+    with ClustersHDFStore(locs_path) as ct:
+        # get the xy coordinates
+        index, xy = ct.get_points_for_clustering()
+        # form the clusters
+        labels, core_samples_mask = voronoi_clustering(
             xy, thresh_method=thresh_method,
             min_samples=min_samples,
             density_factor=density_factor,
             show_plot=show_plot
         )
+        # write data back to the HDF5 file
         now = datetime.datetime.now()
         ct_dict = {}
         ct_dict['clustering_method'] = 'voronoi'
@@ -267,19 +294,24 @@ def run(locs_path, cluster_id='cluster_id', filter_by=None,
         ct_dict['min_samples'] = min_samples
         ct_dict['density_factor'] = density_factor
         ct_dict['date_processed'] = now.strftime("%Y-%m-%d %H:%M")
-        ct.add_clusters(cluster_id, index, labels, ct_dict)
+        ct.add_clusters(index, labels, core_samples_mask, ct_dict)
 
-def batch(folder, cluster_id='cluster_id', filter_by=None,
-          thresh_method='median', min_samples=10, density_factor=0.01):
 
+def batch_voronoi(folder, thresh_method='median', min_samples=10,
+                  density_factor=0.01):
+    """
+    Batch process a folder
+    """
     if os.path.isdir(folder):
         for filename in os.listdir(folder):
             if filename.endswith("h5"):
                 print("Running voronoi clustering on file {0}".format(filename))
                 fpath = os.path.join(folder, filename)
-                run(fpath, cluster_id=cluster_id, filter_by=filter_by,
-                    thresh_method=thresh_method, min_samples=min_samples,
-                    density_factor=density_factor)
+                run_voronoi(
+                    fpath, thresh_method=thresh_method,
+                    min_samples=min_samples,
+                    density_factor=density_factor
+                )
 
 
 if __name__ == '__main__':

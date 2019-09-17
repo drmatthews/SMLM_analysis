@@ -8,8 +8,8 @@ import scipy.special as special
 from sklearn import cluster
 import hdbscan
 
-from smlm_analysis.utils.locs_hdfstore import ClustersHDFStore
-import smlm_analysis.utils.triangulation as tri
+from ..utils.locs_hdfstore import ClustersHDFStore
+from ..utils import triangulation as tri
 
 
 # def find_clusters(points, eps=None, min_samples=1, metric="euclidean"):
@@ -76,7 +76,7 @@ def _epsilon(x, k):
     return eps
 
 
-def run_dbscan(locs_path, cluster_id='cluster_id',
+def run_dbscan(locs_path, cluster_col='cluster_id',
                eps=None, min_samples=10, show_plot=False):
 
     with ClustersHDFStore(locs_path) as chdf:
@@ -99,7 +99,7 @@ def run_dbscan(locs_path, cluster_id='cluster_id',
         ct_dict['min_samples'] = min_samples
         ct_dict['eps'] = eps
         ct_dict['date_processed'] = now.strftime("%Y-%m-%d %H:%M")
-        chdf.add_clusters(cluster_id, index, labels, core_samples_mask, ct_dict)
+        chdf.add_clusters(cluster_col, index, labels, core_samples_mask, ct_dict)
 
     # if show_plot:
     #     unique_labels = set(labels)
@@ -179,8 +179,8 @@ def batch_hdbscan(folder, cluster_id='cluster_id', filter_by=None,
 
 
 if __name__ == '__main__':
-    fpath = '.\\test_data\\ts_small.h5'
-    source='thunderstorm'
+    fpath = '.\\test_data\\ts.h5'
+    # source='thunderstorm'
     # locs = LocsTable(filepath=fpath, source=source)
     # start = time.time()
     # run_hdbscan(fpath, cluster_id='object_id', min_cluster_size=20, min_samples=20, show_plot=True)
@@ -188,6 +188,6 @@ if __name__ == '__main__':
     # print(end - start)
 
     start = time.time()
-    run_dbscan(fpath, cluster_id='object_id', min_samples=10)
+    run_dbscan(fpath, cluster_col='cluster_id', min_samples=10)
     end = time.time()
     print(end - start)

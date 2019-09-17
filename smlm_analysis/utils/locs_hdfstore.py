@@ -572,7 +572,7 @@ class ClustersHDFStore(LocsHDFStore):
         # reopen the store
         self.store = pd.HDFStore(self.filepath, mode='r+')
 
-    def add_clusters(self, cluster_id, index, labels, core_samples_mask, info):
+    def add_clusters(self, index, labels, core_samples_mask, info):
         """
         Rewrites the table in the store to include a column of IDs
         of clusters. Writes clustering information to
@@ -580,8 +580,6 @@ class ClustersHDFStore(LocsHDFStore):
 
         Parameters
         ----------
-        cluster_id : int
-            Integer identifier for the cluster
         index: list of int
             Row indices at which to insert the cluster ID
         labels: list of int
@@ -592,9 +590,13 @@ class ClustersHDFStore(LocsHDFStore):
             Clustering information
         """
         # remove any pre-exisiting clusters
+        method = info['clustering_method']
+        cluster_key = (self.basename.replace(' ', '_') +
+                '_{0}'.format(method))
+
         keys = self.store.keys()
         for key in keys:
-            if cluster_id in key:
+            if key == cluster_key:
                 self.store.remove(key)
 
         # add the clusters to a copy of the in-memory table
@@ -605,10 +607,6 @@ class ClustersHDFStore(LocsHDFStore):
         kwargs = {'cluster_id': -1, 'core_samples': core_samples_mask}
         df = df.assign(**kwargs)
         df.loc[index, 'cluster_id'] = labels
-
-        method = info['clustering_method']
-        cluster_key = (self.basename.replace(' ', '_') +
-                       '_{0}_{1}'.format(method, cluster_id))
 
         # write the new table to the store
         # cols = [X_COLUMN, Y_COLUMN, cluster_id]

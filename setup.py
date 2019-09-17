@@ -16,8 +16,10 @@ setuptools.setup(
       ext_modules = cythonize(
             ["smlm_analysis\\localise\\mle.pyx", 
              "smlm_analysis\\localise\\gauss_guess.pyx",
-             "smlm_analysis\\localise\\convolution.pyx"
-             "smlm_analysis\\render\\histogram.pyx"],
+             "smlm_analysis\\localise\\convolution.pyx",
+             "smlm_analysis\\render\\histogram.pyx",
+             "smlm_analysis\\cluster\\_focal_inner.pyx",
+             "smlm_analysis\\cluster\\_voronoi_inner.pyx"],
              annotate=False
       ),
       zip_safe=False,

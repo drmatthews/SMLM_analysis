@@ -187,7 +187,3 @@ def pc_corr(image1=None, image2=None, region=None, rmax=100):
     r = np.arange(rmax+1)
     G[rmax+1, rmax+1] = 0
     return (g, r)
-
-
-def create_distance_matrix(pointsA, pointsB):
-    return np.sort(cdist(np.array(pointsA), np.array(pointsB), 'euclidean'))

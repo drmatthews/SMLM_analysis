@@ -7,10 +7,10 @@ from scipy import fftpack
 from matplotlib import pyplot as plt
 from tiffile import imread
 
-from smlm_analysis.utils.loc_hdfstore import LocsHDFStore
-from smlm_analysis.frc._frc_inner import calc_frc
-from smlm_analysis.frc._tukey_inner import tukey_2d
-from smlm_analysis.utils.rendering import hist_2d
+from ..utils.locs_hdfstore import LocsHDFStore
+from ._frc_inner import calc_frc
+from ._tukey_inner import tukey_2d
+from ..utils.render.histogram import hist_2d
 
 ###
 # Needs refactoring - 
@@ -64,47 +64,49 @@ def frc_in_memory(locs_path=None, image1=None, image2=None,
     """
     
     if locs_path:
-        lhdf = LocsHDFStore(locs_path)
+        with LocsHDFStore(locs_path) as lhdf:
 
-        num_frames = lhdf.n_frames
-        num_blocks = num_frames // blocksize
-        subset = np.ones(num_blocks)
-        subset[:num_blocks // 2] = 0
-        np.random.shuffle(subset)
-        rand_subset = subset.astype(int)
+            num_frames = lhdf.n_frames
+            num_blocks = num_frames // blocksize
+            subset = np.ones(num_blocks)
+            subset[:num_blocks // 2] = 0
+            np.random.shuffle(subset)
+            rand_subset = subset.astype(int)
 
-        first_half = []
-        second_half = []
-        start = 0
-        end = blocksize - 1
-        for i, s in enumerate(rand_subset):
-            if s == 0:
-                # need a LocsTable method for slicing based on frame column
-                first_half.append(lhdf.table[(lhdf.table.frame >= float(start)) & (lhdf.table.frame <= float(end))])
-            if s == 1:
-                second_half.append(lhdf.table[(lhdf.table.frame >= float(start)) & (lhdf.table.frame <= float(end))])
-            start += blocksize
-            end += blocksize
+            first_half = []
+            second_half = []
+            start = 0
+            end = blocksize - 1
+            for i, s in enumerate(rand_subset):
+                if s == 0:
+                    # need a LocsTable method for slicing based on frame column
+                    first_half.append(lhdf.table[(lhdf.table.frame >= float(start)) & (lhdf.table.frame <= float(end))])
+                if s == 1:
+                    second_half.append(lhdf.table[(lhdf.table.frame >= float(start)) & (lhdf.table.frame <= float(end))])
+                start += blocksize
+                end += blocksize
 
-        first_half_df = pd.concat(first_half)
-        second_half_df = pd.concat(second_half)
-        first_points = np.array((first_half_df['x'].values, first_half_df['y'].values)).T
-        second_points = np.array((second_half_df['x'].values, second_half_df['y'].values)).T
+            first_half_df = pd.concat(first_half)
+            second_half_df = pd.concat(second_half)
+            first_points = np.array((first_half_df['x'].values, first_half_df['y'].values)).T
+            second_points = np.array((second_half_df['x'].values, second_half_df['y'].values)).T
 
-        bins = [f * scale for f in camera_format] # num pixels in reconstructed image
-        nm_scale = float(camera_pixel / scale)
+            bins = [f * scale for f in camera_format] # num pixels in reconstructed image
+            nm_scale = float(camera_pixel / scale)
 
-        i_x = np.floor(first_points[:, 0]/nm_scale).astype(np.int32)
-        i_y = np.floor(first_points[:, 1]/nm_scale).astype(np.int32)
-        n1 = first_points.shape[0]
-        im1 = np.zeros(bins, dtype=np.int32)
-        hist_2d(i_x, i_y, n1, im1)
-        
-        i_x = np.floor(second_points[:, 0]/nm_scale).astype(np.int32)
-        i_y = np.floor(second_points[:, 1]/nm_scale).astype(np.int32)
-        n2 = second_points.shape[0]
-        im2 = np.zeros(bins, dtype=np.int32)
-        hist_2d(i_x, i_y, n2, im2)
+            # this bit is repeated in several locations - integrate
+            # into rendering module
+            i_x = np.floor(first_points[:, 0]/nm_scale).astype(np.int32)
+            i_y = np.floor(first_points[:, 1]/nm_scale).astype(np.int32)
+            n1 = first_points.shape[0]
+            im1 = np.zeros(bins, dtype=np.int32)
+            hist_2d(i_x, i_y, n1, im1)
+            
+            i_x = np.floor(second_points[:, 0]/nm_scale).astype(np.int32)
+            i_y = np.floor(second_points[:, 1]/nm_scale).astype(np.int32)
+            n2 = second_points.shape[0]
+            im2 = np.zeros(bins, dtype=np.int32)
+            hist_2d(i_x, i_y, n2, im2)
 
     elif image1 and image2:
         _, ext1 = os.path.splitext(image1)
@@ -164,8 +166,6 @@ def frc_in_memory(locs_path=None, image1=None, image2=None,
         plt.ylabel("Correlation")
         # plt.savefig('frc_test.png')
         plt.show()
-
-    lhdf.close()
 
 
 def frc_stream(fpath=None, blocksize=500, scale=10,
