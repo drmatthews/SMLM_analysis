@@ -146,7 +146,7 @@ class PhasorFitter:
         microscopy in 3D (pSMLM-3D): An algorithm for MHz localization rates
         using standard CPUs", J. Chem. Phys. 148, 123311 (2018);
         https://doi.org/10.1063/1.5005899
-    """"
+    """
     def __init__(self, is_3d, window):
         self.fit_params = np.zeros(7, dtype=np.float64)
         self.aperture(window)

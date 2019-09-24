@@ -2,7 +2,7 @@ from math import pi, sqrt
 
 import numpy as np
 import pandas as pd
-from sklearn.neighbors import KDTree
+from scipy.spatial import cKDTree
 from matplotlib import pyplot as plt
 from multiprocessing import Pool, cpu_count
 import tqdm
@@ -332,12 +332,12 @@ class PeakFinder:
     Positions are refined using either phasor fitting or by iterative
     Gaussian fitting (using either MLE or least squares).
     """
-    def __init__(self, parameters, notebook):
+    def __init__(self, parameters, notebook=False):
         self.params = parameters
         self.notebook = notebook
 
     def _find_overlapping(self, points):
-        tree = KDTree(points, leaf_size=2)
+        tree = cKDTree(points, leaf_size=2)
         dist, ind = tree.query(points[:], k=2)
         rmax = self.params.window
         return np.where(dist[:, 1] >= rmax)    
@@ -357,7 +357,7 @@ class PeakFinder:
             filtered = cf.filter_image(frame.astype(np.float64))
         else:
             raise ValueError('Image filtering method not set')
-        print(samples)
+
         # maximum filter
         mf = filters.MaximumFilter(2 * samples + 1)
         mfilt = mf.filter_image(filtered)
@@ -422,7 +422,6 @@ class PeakFinder:
                 pos[0] - fit_radius: pos[0] + fit_radius + 1,
                 pos[1] - fit_radius: pos[1] + fit_radius + 1
             ] * self.params.photon_conversion
-
             peak.fit(img, reference, image.frame_no)
             if peak.good:
                 peaks.append(peak)
@@ -430,13 +429,12 @@ class PeakFinder:
         return peaks   
 
     def locate(self, frame):
-
         if frame.ndim == 3:
             channel = self.params.channel
             image = frame[channel]
         else:
             image = frame
-        
+
         candidates = self._estimate(image)
 
         if np.any(candidates):
@@ -449,7 +447,7 @@ class PeakFinder:
                 else:
                     raise ValueError('Unknown position refinement method')
                      
-            return self._refine(frame, candidates, peak_cls)
+            return self._refine(image, candidates, peak_cls)
         else:
             return None
 
@@ -510,10 +508,28 @@ class PeakFinder:
         args = [frame for frame in movie[start:stop]]
         with Pool(processes=cpu_count() - 1) as pool:
             max_ = stop - start
-            desc = 'Localising molecules'
+            desc = 'Localising'
             results = list(
                 pbar(pool.imap(func, args), total=max_, desc=desc)
             )
+        print('')
+        self.write_localisations(results, self.params.locs_path)
+        num_molecules = sum([len(r) for r in results if r is not None])
+        return num_molecules
+
+    def run_serial(self, movie):
+        pbar = tqdm.tqdm
+        if self.notebook:
+            pbar = tqdm.tqdm_notebook
+
+        start = self.params.start_frame
+        stop = self.params.stop_frame
+        assert(start <= stop)
+        max_ = stop - start
+        desc = 'Localising'
+        results = []
+        for frame in pbar(movie[start:stop], total=max_, desc=desc):
+            results.append(self.locate(frame))
         print('')
         self.write_localisations(results, self.params.locs_path)
         num_molecules = sum([len(r) for r in results if r is not None])

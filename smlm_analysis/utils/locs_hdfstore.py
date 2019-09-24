@@ -130,13 +130,14 @@ class LocsHDFStore:
 
     def _check_keys(self, store):
         keys = store.keys()
-        if '/linked_table' in keys:
-            self._key = '/linked_table'
-        elif '/table'in keys:
-            self._key = '/table'
-        else:
-            raise IOError('no data in this store')
-        
+        # if '/table' in keys:
+        #     self._key = '/linked_table'
+        # elif '/linked_table'in keys:
+        #     self._key = '/table'
+        # else:
+        #     raise IOError('no data in this store')
+        self._key = '/table'
+
         tracks_key = '/tracks_table'
         if tracks_key in keys:
             self.tracks_key = tracks_key
@@ -170,7 +171,7 @@ class LocsHDFStore:
     @key.setter
     def key(self, value):
         keys = self.store.keys()
-        if value not in keys:
+        if value in keys:
             self._key = value
 
     @property
