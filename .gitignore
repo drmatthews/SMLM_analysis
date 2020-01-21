@@ -3,5 +3,8 @@ SMLM_analysis.egg-info
 .ipynb_checkpoints
 .vscode
 *.pyd
+*.c
+*.so
+*.dll
 build/
 test_data/
